@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { UpcomingStage } from '../api/applications'
-import { formatUpcomingTime, selectUpcoming } from './upcomingStages'
+import { formatStageSchedule } from '../board/stageTime'
+import { formatUpcomingSchedule, formatUpcomingTime, selectUpcoming } from './upcomingStages'
 
 // Dates are built from local calendar fields, so the suite behaves the same in any timezone it runs in.
 const local = (y: number, m: number, d: number, h = 0, min = 0) => new Date(y, m - 1, d, h, min)
@@ -11,6 +12,7 @@ function stage(stageId: number, scheduledAt: string | null, name = `Stage ${stag
     stageId,
     stageName: name,
     scheduledAt: scheduledAt as string,
+    scheduledEndAt: null,
     applicationId: stageId * 10,
     jobId: stageId * 100,
     jobTitle: 'Backend Engineer',
@@ -91,5 +93,49 @@ describe('formatUpcomingTime', () => {
 
   it('adds the year only when it differs from the current year', () => {
     expect(formatUpcomingTime(iso(local(2027, 3, 5, 10, 0)), now)).toContain('2027')
+  })
+})
+
+describe('formatUpcomingSchedule', () => {
+  const now = local(2026, 10, 13, 12, 0)
+  const day = (d: Date) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  const time = (d: Date) => d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  const occurrences = (text: string, part: string) => text.split(part).length - 1
+
+  it('without an end time is exactly the existing display', () => {
+    const start = local(2026, 11, 6, 15, 0)
+    expect(formatUpcomingSchedule(iso(start), null, now)).toBe(formatUpcomingTime(iso(start), now))
+    expect(formatUpcomingSchedule(iso(start), undefined, now)).toBe(formatUpcomingTime(iso(start), now))
+  })
+
+  it('shows a same-day end as a compact range without repeating the date', () => {
+    const start = local(2026, 11, 6, 15, 0)
+    const end = local(2026, 11, 6, 16, 0)
+    const text = formatUpcomingSchedule(iso(start), iso(end), now)
+    expect(text).toBe(`${formatUpcomingTime(iso(start), now)} – ${time(end)}`)
+    expect(occurrences(text, day(start))).toBe(1)
+  })
+
+  it('keeps the Today / Tomorrow style of the start in a same-day range', () => {
+    expect(formatUpcomingSchedule(iso(local(2026, 10, 13, 15, 0)), iso(local(2026, 10, 13, 16, 0)), now)).toMatch(/^Today, .* – /)
+    expect(formatUpcomingSchedule(iso(local(2026, 10, 14, 10, 0)), iso(local(2026, 10, 14, 11, 0)), now)).toMatch(/^Tomorrow, .* – /)
+  })
+
+  it('writes both ends out when the stage spans days', () => {
+    const start = local(2026, 11, 6, 23, 0)
+    const end = local(2026, 11, 7, 1, 0)
+    const text = formatUpcomingSchedule(iso(start), iso(end), now)
+    expect(text).toBe(`${formatUpcomingTime(iso(start), now)} – ${formatUpcomingTime(iso(end), now)}`)
+    expect(text).toContain(day(start))
+    expect(text).toContain(day(end))
+  })
+
+  it('matches the Ticket Drawer wording for the same stage when the date is not relative', () => {
+    const start = iso(local(2026, 11, 6, 15, 0))
+    const end = iso(local(2026, 11, 6, 16, 0))
+    expect(formatUpcomingSchedule(start, end, now)).toBe(formatStageSchedule(start, end))
+    const lateEnd = iso(local(2026, 11, 7, 1, 0))
+    const lateStart = iso(local(2026, 11, 6, 23, 0))
+    expect(formatUpcomingSchedule(lateStart, lateEnd, now)).toBe(formatStageSchedule(lateStart, lateEnd))
   })
 })

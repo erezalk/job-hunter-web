@@ -33,9 +33,9 @@ const CARDS: BoardCard[] = JOBS.map((j) => ({
   workModel: null, fitScore: null, statusCode: j.statusCode, starred: false, discoveredAt: NOW_ISO, createdAt: NOW_ISO,
 }))
 
-function upcomingStage(stageId: number, applicationId: number, name: string, scheduledAt: string | null): UpcomingStage {
+function upcomingStage(stageId: number, applicationId: number, name: string, scheduledAt: string | null, scheduledEndAt: string | null = null): UpcomingStage {
   const job = JOBS.find((j) => j.applicationId === applicationId)!
-  return { stageId, stageName: name, scheduledAt: scheduledAt as string, applicationId, jobId: applicationId * 10, jobTitle: job.title, companyName: job.company }
+  return { stageId, stageName: name, scheduledAt: scheduledAt as string, scheduledEndAt, applicationId, jobId: applicationId * 10, jobTitle: job.title, companyName: job.company }
 }
 
 function mockApis(upcoming: () => UpcomingStage[]) {
@@ -149,6 +149,66 @@ describe('bell with upcoming stages', () => {
   })
 })
 
+describe('stage end times in the popup', () => {
+  // Local calendar fields a few days ahead (never "Today"/"Tomorrow"), so the expectations hold in any timezone.
+  const ahead = (days: number, h: number, min = 0) => {
+    const d = new Date()
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate() + days, h, min).toISOString()
+  }
+  const dayText = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  const timeText = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  const caption = async (stageName: string) => {
+    const row = (await screen.findByText(stageName)).closest('.MuiListItemButton-root')!
+    return Array.from(row.querySelectorAll('span, p, div')).map((e) => e.textContent ?? '').filter((t) => /\d:\d\d/.test(t)).pop()!
+  }
+
+  beforeEach(() =>
+    mockApis(() => [
+      upcomingStage(1, 1, 'No End', ahead(4, 10)),
+      upcomingStage(2, 1, 'Same Day', ahead(5, 15), ahead(5, 16)),
+      upcomingStage(3, 2, 'Cross Day', ahead(6, 23), ahead(7, 1)),
+    ]),
+  )
+
+  it('keeps a stage without an end time exactly as it was', async () => {
+    renderBell()
+    await userEvent.click(await bell())
+
+    const text = await caption('No End')
+    expect(text).toBe(new Date(ahead(4, 10)).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }))
+    expect(text).not.toContain(' – ')
+  })
+
+  it('shows a same-day end as a compact range with the date once', async () => {
+    renderBell()
+    await userEvent.click(await bell())
+
+    const text = await caption('Same Day')
+    expect(text).toBe(`${new Date(ahead(5, 15)).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} – ${timeText(ahead(5, 16))}`)
+    expect(text.split(dayText(ahead(5, 15))).length - 1).toBe(1)
+  })
+
+  it('shows both dates and times for a stage that ends on another day', async () => {
+    renderBell()
+    await userEvent.click(await bell())
+
+    const text = await caption('Cross Day')
+    expect(text).toContain(' – ')
+    expect(text).toContain(dayText(ahead(6, 23)))
+    expect(text).toContain(dayText(ahead(7, 1)))
+    expect(text).toContain(timeText(ahead(7, 1)))
+  })
+
+  it('does not change which stages are listed or their order', async () => {
+    renderBell()
+    await userEvent.click(await bell())
+    await screen.findByText('No End')
+
+    expect(rowNames()).toEqual(['No End', 'Same Day', 'Cross Day'])
+    expect(hasDot()).toBe(true)
+  })
+})
+
 describe('time passing', () => {
   it('drops a stage from the list and clears the dot once it is in the past, without refetching', async () => {
     mockApis(() => [upcomingStage(1, 1, 'Soon', new Date(Date.now() + 400).toISOString())])
@@ -164,7 +224,7 @@ describe('reacting to stage changes', () => {
     let stages = [upcomingStage(1, 1, 'Technical Interview', inHours(3))]
     mockApis(() => stages)
     vi.spyOn(applicationsApi, 'fetchApplicationStages').mockResolvedValue([
-      { id: 1, name: 'Technical Interview', scheduledAt: inHours(3), interviewerNames: null, notes: null, outcome: null, createdAt: NOW_ISO, updatedAt: NOW_ISO },
+      { id: 1, name: 'Technical Interview', scheduledAt: inHours(3), scheduledEndAt: null, interviewerNames: null, notes: null, outcome: null, createdAt: NOW_ISO, updatedAt: NOW_ISO },
     ])
     vi.spyOn(applicationsApi, 'deleteApplicationStage').mockImplementation(async () => {
       stages = []
@@ -185,7 +245,7 @@ describe('reacting to stage changes', () => {
     mockApis(() => stages)
     vi.spyOn(applicationsApi, 'createApplicationStage').mockImplementation(async () => {
       stages = [upcomingStage(9, 1, 'Phone Screen', inHours(5))]
-      return { id: 9, name: 'Phone Screen', scheduledAt: inHours(5), interviewerNames: null, notes: null, outcome: null, createdAt: NOW_ISO, updatedAt: NOW_ISO }
+      return { id: 9, name: 'Phone Screen', scheduledAt: inHours(5), scheduledEndAt: null, interviewerNames: null, notes: null, outcome: null, createdAt: NOW_ISO, updatedAt: NOW_ISO }
     })
     // Open ticket 1 through the Board, as a user without any upcoming stage would.
     renderWith(<TicketDrawerProvider><UpcomingStagesBell /><BoardPage /></TicketDrawerProvider>)

@@ -24,6 +24,7 @@ export interface ApplicationStage {
   id: number
   name: string
   scheduledAt: string | null
+  scheduledEndAt: string | null
   interviewerNames: string | null
   notes: string | null
   outcome: string | null
@@ -34,6 +35,7 @@ export interface ApplicationStage {
 export interface ApplicationStageRequest {
   name: string
   scheduledAt?: string | null
+  scheduledEndAt?: string | null
   interviewerNames?: string | null
   notes?: string | null
   outcome?: string | null
@@ -85,6 +87,7 @@ export interface UpcomingStage {
   stageId: number
   stageName: string
   scheduledAt: string
+  scheduledEndAt: string | null
   applicationId: number
   jobId: number
   jobTitle: string

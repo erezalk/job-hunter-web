@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField } from '@mui/material'
 import type { ApplicationStage, ApplicationStageRequest } from '../api/applications'
+import { stageEndError } from './stageTime'
 
 function toDatetimeLocalValue(iso: string | null | undefined): string {
   if (!iso) return ''
@@ -14,7 +15,7 @@ function fromDatetimeLocalValue(value: string): string | null {
   return new Date(value).toISOString()
 }
 
-const EMPTY: ApplicationStageRequest = { name: '', scheduledAt: null, interviewerNames: '', notes: '', outcome: '' }
+const EMPTY: ApplicationStageRequest = { name: '', scheduledAt: null, scheduledEndAt: null, interviewerNames: '', notes: '', outcome: '' }
 
 export function StageDialog({
   open,
@@ -40,6 +41,7 @@ export function StageDialog({
           ? {
               name: stage.name,
               scheduledAt: stage.scheduledAt,
+              scheduledEndAt: stage.scheduledEndAt ?? null, // always sent: an omitted end would keep the stored one
               interviewerNames: stage.interviewerNames ?? '',
               notes: stage.notes ?? '',
               outcome: stage.outcome ?? '',
@@ -48,6 +50,8 @@ export function StageDialog({
       )
     }
   }, [open, stage])
+
+  const endError = stageEndError(form.scheduledAt, form.scheduledEndAt)
 
   function handleSubmit() {
     onSubmit(form)
@@ -76,6 +80,16 @@ export function StageDialog({
           onChange={(e) => setForm({ ...form, scheduledAt: fromDatetimeLocalValue(e.target.value) })}
         />
         <TextField
+          label="Ends at (optional)"
+          type="datetime-local"
+          fullWidth
+          slotProps={{ inputLabel: { shrink: true } }}
+          value={toDatetimeLocalValue(form.scheduledEndAt)}
+          onChange={(e) => setForm({ ...form, scheduledEndAt: fromDatetimeLocalValue(e.target.value) })}
+          error={!!endError}
+          helperText={endError ?? undefined}
+        />
+        <TextField
           label="Interviewer names"
           placeholder="e.g. Alice, Bob"
           fullWidth
@@ -101,7 +115,7 @@ export function StageDialog({
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose}>Cancel</Button>
         <Box sx={{ flexGrow: 1 }} />
-        <Button variant="contained" disabled={!form.name.trim() || submitting} onClick={handleSubmit}>
+        <Button variant="contained" disabled={!form.name.trim() || !!endError || submitting} onClick={handleSubmit}>
           Save
         </Button>
       </DialogActions>

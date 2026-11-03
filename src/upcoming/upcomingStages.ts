@@ -1,4 +1,5 @@
 import type { UpcomingStage } from '../api/applications'
+import { joinStageRange } from '../board/stageTime'
 
 // Cache key of GET /api/stages/upcoming; stage/job mutations invalidate it.
 export const UPCOMING_STAGES_QUERY_KEY = ['upcomingStages']
@@ -31,4 +32,12 @@ export function formatUpcomingTime(iso: string, now: Date): string {
     ...(date.getFullYear() !== now.getFullYear() && { year: 'numeric' }),
     ...TIME_OPTIONS,
   })
+}
+
+// The popup's row text: the start exactly as before when there is no end, otherwise the shared stage
+// range rule with this list's own start style ("Today, 03:00 PM – 04:00 PM", "Nov 6, 03:00 PM – 04:00 PM",
+// or both ends written out when the stage spans days).
+export function formatUpcomingSchedule(startIso: string, endIso: string | null | undefined, now: Date): string {
+  if (!endIso) return formatUpcomingTime(startIso, now)
+  return joinStageRange(startIso, endIso, (iso) => formatUpcomingTime(iso, now))
 }

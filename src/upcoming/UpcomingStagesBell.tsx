@@ -2,7 +2,7 @@ import { useState } from 'react'
 import NotificationsNoneOutlinedIcon from '@mui/icons-material/NotificationsNoneOutlined'
 import { Badge, Box, IconButton, List, ListItemButton, Popover, Tooltip, Typography } from '@mui/material'
 import { useTicketDrawer } from '../board/TicketDrawerContext'
-import { formatUpcomingTime } from './upcomingStages'
+import { formatUpcomingSchedule } from './upcomingStages'
 import { useUpcomingStages } from './useUpcomingStages'
 
 // Header bell: a red dot while at least one future stage is scheduled; the
@@ -85,7 +85,7 @@ export function UpcomingStagesBell() {
                     {stage.companyName ? `${stage.jobTitle} · ${stage.companyName}` : stage.jobTitle}
                   </Typography>
                   <Typography variant="caption" color="text.secondary" component="div">
-                    {formatUpcomingTime(stage.scheduledAt, now)}
+                    {formatUpcomingSchedule(stage.scheduledAt, stage.scheduledEndAt, now)}
                   </Typography>
                 </Box>
               </ListItemButton>

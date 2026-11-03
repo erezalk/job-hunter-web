@@ -51,20 +51,11 @@ import { AiMatchResultView } from './AiMatchResultView'
 import { JobInfoEditForm, type JobFieldErrors } from './JobInfoEditForm'
 import { JobMetaLine } from './JobMetaLine'
 import { StageDialog } from './StageDialog'
+import { formatStageSchedule } from './stageTime'
 import { UPCOMING_STAGES_QUERY_KEY } from '../upcoming/upcomingStages'
 
 function statusLabel(code: string): string {
   return BOARD_COLUMNS.find((c) => c.code === code)?.label ?? code
-}
-
-function formatDateTime(iso: string | null): string {
-  if (!iso) return 'Not scheduled'
-  return new Date(iso).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 
 function StageItem({
@@ -85,7 +76,7 @@ function StageItem({
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary', mt: 0.25 }}>
             <EventOutlinedIcon sx={{ fontSize: 14 }} />
-            <Typography variant="caption">{formatDateTime(stage.scheduledAt)}</Typography>
+            <Typography variant="caption">{formatStageSchedule(stage.scheduledAt, stage.scheduledEndAt)}</Typography>
           </Box>
           {stage.interviewerNames && (
             <Typography variant="caption" color="text.secondary" component="div">
@@ -277,8 +268,9 @@ function TicketDrawerContent({
     },
   })
 
-  // PATCH /api/jobs/{id}. The server removes the stored AI match only when the
-  // AI-relevant fields changed, so the match caches are refreshed, not cleared.
+  // PATCH /api/jobs/{id}. The server never touches the stored AI match on an
+  // edit (only Re-evaluate replaces it), so the match cache is just refetched,
+  // never cleared, and the current result stays on screen meanwhile.
   const updateJobMutation = useMutation({
     mutationFn: (request: JobRequest) => updateJob(jobId!, request),
     onSuccess: (updated) => {
