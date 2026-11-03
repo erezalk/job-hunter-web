@@ -309,3 +309,156 @@ describe('stage times in the Ticket Drawer', () => {
     expect(update).not.toHaveBeenCalled()
   })
 })
+
+describe('long stage text in the Ticket Drawer', () => {
+  // jsdom does no layout, so the browser measurements are faked: text containing LONG overflows six lines.
+  const isLong = (el: Element) => !!el.textContent?.includes('LONG')
+  const stage = (id: number, name: string, overrides: Partial<ApplicationStage> = {}): ApplicationStage => ({
+    id, name, scheduledAt: null, scheduledEndAt: null, interviewerNames: 'Dana', notes: 'Short notes', outcome: 'Passed',
+    createdAt: NOW, updatedAt: NOW, ...overrides,
+  })
+  const LONG_NOTES = 'LONG notes\n\nParagraph one\n  - item with   spaces\n`code()`\n<b>not markup</b>\n\n'
+  const LONG_OUTCOME = 'LONG feedback: strong on design, weaker on algorithms'
+
+  // The clamped text element, found by its exact text (getByText would normalise the whitespace).
+  const textBlock = (text: string) =>
+    screen.getByText((_, el) => el?.tagName === 'DIV' && el.childElementCount === 0 && el.textContent === text)
+  const control = (block: HTMLElement) => within(block.parentElement!.parentElement!).queryByRole('button', { name: /^Show (more|less)$/ })
+
+  beforeEach(() => {
+    vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (this: HTMLElement) { return isLong(this) ? 300 : 20 })
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (this: HTMLElement) { return isLong(this) ? 120 : 20 })
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  async function renderStages(stages: ApplicationStage[]) {
+    vi.spyOn(applicationsApi, 'fetchApplicationStages').mockResolvedValue(stages)
+    renderDrawer(1)
+    await openedTicket('Alpha Role')
+    await screen.findByText(stages[0].name)
+  }
+
+  it('shows short notes and outcome normally, without a Show more control', async () => {
+    await renderStages([stage(1, 'Phone screen')])
+
+    expect(textBlock('Short notes')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Show (more|less)/ })).not.toBeInTheDocument()
+  })
+
+  it('starts long notes collapsed with Show more, expands to Show less and collapses again', async () => {
+    await renderStages([stage(1, 'Phone screen', { notes: LONG_NOTES })])
+    const notes = textBlock(LONG_NOTES)
+
+    const showMore = control(notes)!
+    expect(showMore).toHaveTextContent('Show more')
+    expect(showMore).toHaveAttribute('aria-expanded', 'false')
+    expect(getComputedStyle(notes).overflow).toBe('hidden')
+
+    await userEvent.click(showMore)
+    expect(control(notes)).toHaveTextContent('Show less')
+    expect(control(notes)).toHaveAttribute('aria-expanded', 'true')
+    expect(getComputedStyle(notes).overflow).not.toBe('hidden')
+    expect(notes.textContent).toBe(LONG_NOTES)
+
+    await userEvent.click(control(notes)!)
+    expect(control(notes)).toHaveTextContent('Show more')
+    expect(control(notes)).toHaveAttribute('aria-expanded', 'false')
+    expect(getComputedStyle(notes).overflow).toBe('hidden')
+    expect(notes.textContent).toBe(LONG_NOTES)
+  })
+
+  it('does the same for a long outcome', async () => {
+    await renderStages([stage(1, 'Phone screen', { outcome: LONG_OUTCOME })])
+    const outcome = textBlock(`Outcome: ${LONG_OUTCOME}`)
+
+    expect(control(outcome)).toHaveTextContent('Show more')
+    await userEvent.click(control(outcome)!)
+    expect(control(outcome)).toHaveTextContent('Show less')
+    expect(outcome.textContent).toBe(`Outcome: ${LONG_OUTCOME}`)
+    await userEvent.click(control(outcome)!)
+    expect(control(outcome)).toHaveTextContent('Show more')
+  })
+
+  it('keeps Notes and Outcome of a stage, and the same field of different stages, independent', async () => {
+    await renderStages([
+      stage(1, 'Phone screen', { notes: `${LONG_NOTES}A`, outcome: `${LONG_OUTCOME} A` }),
+      stage(2, 'Onsite', { notes: `${LONG_NOTES}B`, outcome: `${LONG_OUTCOME} B` }),
+    ])
+    const notesA = textBlock(`${LONG_NOTES}A`)
+    const outcomeA = textBlock(`Outcome: ${LONG_OUTCOME} A`)
+    const notesB = textBlock(`${LONG_NOTES}B`)
+    const outcomeB = textBlock(`Outcome: ${LONG_OUTCOME} B`)
+    const states = () => [notesA, outcomeA, notesB, outcomeB].map((b) => control(b)!.getAttribute('aria-expanded'))
+
+    expect(states()).toEqual(['false', 'false', 'false', 'false'])
+    await userEvent.click(control(notesA)!)
+    expect(states()).toEqual(['true', 'false', 'false', 'false'])
+    await userEvent.click(control(outcomeB)!)
+    expect(states()).toEqual(['true', 'false', 'false', 'true'])
+    await userEvent.click(control(notesA)!)
+    expect(states()).toEqual(['false', 'false', 'false', 'true'])
+  })
+
+  it('never sends an update when expanding or collapsing', async () => {
+    const update = vi.spyOn(applicationsApi, 'updateApplicationStage')
+    const create = vi.spyOn(applicationsApi, 'createApplicationStage')
+    await renderStages([stage(1, 'Phone screen', { notes: LONG_NOTES })])
+    const notes = textBlock(LONG_NOTES)
+
+    await userEvent.click(control(notes)!)
+    await userEvent.click(control(notes)!)
+
+    expect(update).not.toHaveBeenCalled()
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it('collapses edited notes that become long and drops the control for notes that become short', async () => {
+    const original = stage(5, 'Phone screen', { notes: LONG_NOTES })
+    const fetchStages = vi.spyOn(applicationsApi, 'fetchApplicationStages').mockResolvedValue([original])
+    const update = vi.spyOn(applicationsApi, 'updateApplicationStage').mockImplementation(async (_app, _id, request) => {
+      const saved = { ...original, notes: request.notes ?? null }
+      fetchStages.mockResolvedValue([saved])
+      return saved
+    })
+    renderDrawer(1)
+    await openedTicket('Alpha Role')
+    await userEvent.click(control(textBlock(LONG_NOTES))!)
+    expect(control(textBlock(LONG_NOTES))).toHaveTextContent('Show less')
+
+    // Long -> short: the saved text shows normally, no control.
+    await userEvent.click(screen.getByRole('button', { name: 'Edit stage' }))
+    fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'Now short' } })
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1))
+    expect(update).toHaveBeenLastCalledWith(1, 5, expect.objectContaining({ notes: 'Now short' }))
+    expect(await screen.findByText('Now short')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Show (more|less)/ })).not.toBeInTheDocument()
+
+    // Short -> long: collapsed again with Show more.
+    await userEvent.click(screen.getByRole('button', { name: 'Edit stage' }))
+    fireEvent.change(screen.getByLabelText('Notes'), { target: { value: `${LONG_NOTES}edited` } })
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(2))
+    expect(update).toHaveBeenLastCalledWith(1, 5, expect.objectContaining({ notes: `${LONG_NOTES}edited` }))
+    await waitFor(() => expect(control(textBlock(`${LONG_NOTES}edited`))).toHaveTextContent('Show more'))
+  })
+
+  it('keeps the stage header, schedule and edit/delete actions working next to long text', async () => {
+    const at = (d: number, h: number) => new Date(2026, 9, d, h).toISOString()
+    const remove = vi.spyOn(applicationsApi, 'deleteApplicationStage').mockResolvedValue(undefined)
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await renderStages([stage(7, 'Tech interview', { scheduledAt: at(29, 13), scheduledEndAt: at(29, 14), notes: LONG_NOTES, outcome: LONG_OUTCOME })])
+
+    expect(screen.getByText('Tech interview')).toBeInTheDocument()
+    expect(screen.getByText('Interviewers: Dana')).toBeInTheDocument()
+    expect(screen.getByText(/ – /)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Edit stage' }))
+    expect(screen.getByLabelText('Ends at (optional)')).toHaveValue('2026-10-29T14:00')
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByLabelText('Ends at (optional)')).not.toBeInTheDocument())
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete stage' }))
+    await waitFor(() => expect(remove).toHaveBeenCalledWith(1, 7))
+  })
+})

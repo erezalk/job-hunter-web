@@ -47,6 +47,7 @@ import { BOARD_COLUMNS } from './boardColumns'
 import { StarButton } from './StarButton'
 import { useStarToggle } from './useStarToggle'
 import { CollapsibleDescription } from './CollapsibleDescription'
+import { CollapsibleStageText } from './CollapsibleStageText'
 import { AiMatchResultView } from './AiMatchResultView'
 import { JobInfoEditForm, type JobFieldErrors } from './JobInfoEditForm'
 import { JobMetaLine } from './JobMetaLine'
@@ -94,13 +95,15 @@ function StageItem({
         </Box>
       </Box>
       {stage.outcome && (
-        <Chip size="small" label={`Outcome: ${stage.outcome}`} sx={{ mt: 1, height: 22, '& .MuiChip-label': { fontSize: 11 } }} />
+        // Chip-like pill that can wrap: a Chip label is a single ellipsized line, so it cannot show more.
+        <CollapsibleStageText
+          text={`Outcome: ${stage.outcome}`}
+          sx={{ mt: 1 }}
+          frameSx={{ width: 'fit-content', maxWidth: '100%', px: 1, py: '3px', borderRadius: '12px', bgcolor: 'action.selected' }}
+          textSx={{ fontSize: 11, lineHeight: 1.4, overflowWrap: 'anywhere' }}
+        />
       )}
-      {stage.notes && (
-        <Typography variant="body2" sx={{ mt: 1, whiteSpace: 'pre-wrap' }}>
-          {stage.notes}
-        </Typography>
-      )}
+      {stage.notes && <CollapsibleStageText text={stage.notes} sx={{ mt: 1 }} />}
     </Box>
   )
 }
