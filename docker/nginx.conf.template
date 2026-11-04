@@ -1,0 +1,43 @@
+# Rendered at container start (envsubst replaces ${BACKEND_URL} only).
+server {
+    listen 8080;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # CV uploads and job-data imports are limited by the backend; this only has to be larger.
+    client_max_body_size 64m;
+
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy same-origin always;
+
+    # Docker's embedded DNS. Together with the variable below, the backend name is looked up per request,
+    # so nginx starts without the backend and follows it when its container is recreated.
+    resolver 127.0.0.11 valid=10s ipv6=off;
+
+    location /api/ {
+        set $backend ${BACKEND_URL};
+        proxy_pass $backend;
+        proxy_http_version 1.1;
+        # Keep the browser's Host so the backend sees the request as same-origin (cookies, CORS, CSRF unchanged).
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # AI fit evaluations can take a while.
+        proxy_read_timeout 120s;
+    }
+
+    # Hashed build output never changes under the same name.
+    location /assets/ {
+        expires 1y;
+        try_files $uri =404;
+    }
+
+    # Single-page app: unknown paths load index.html (client-side routing).
+    location / {
+        expires -1;
+        try_files $uri /index.html;
+    }
+}

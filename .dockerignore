@@ -1,0 +1,22 @@
+# Keep the build context small and free of local secrets.
+.git
+.gitignore
+.idea
+.vscode
+.DS_Store
+*.log
+*.tsbuildinfo
+
+node_modules
+dist
+dist-ssr
+coverage
+
+# Local configuration must never be baked into an image (VITE_API_BASE_URL is a build arg instead).
+.env
+.env.*
+
+# Not needed to build the image
+*.md
+Dockerfile
+.dockerignore

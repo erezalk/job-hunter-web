@@ -6,9 +6,15 @@ React single-page UI for Job Hunter, a self-hosted job-search tracker (Kanban Bo
 
 React 19, TypeScript, Vite, MUI, TanStack Query (server state), React Router, axios, `@dnd-kit/core` (drag and drop). Tests: Vitest + Testing Library (jsdom). Lint: oxlint.
 
-## Running locally
+## Quick start (Docker, recommended)
 
-Prerequisites: Node.js 20+ and npm; the backend running on `http://localhost:8080` (see `job-hunter-server/README.md`).
+You do not need Node.js or npm to use Job Hunter. Clone the three repositories side by side and run `docker compose up --build` from `job-hunter-server`; it builds this UI (see `Dockerfile` here), serves it with nginx at http://localhost:3000 and forwards `/api/` to the backend, so the browser talks to one origin. Full instructions: the **Quick Start with Docker** section of `job-hunter-server/README.md`.
+
+In the Docker build `VITE_API_BASE_URL` is empty (same-origin requests). `docker/nginx.conf.template` holds the web server and proxy settings; `BACKEND_URL` (default `http://backend:8080`) is the upstream.
+
+## Running locally for development
+
+Only needed to work on the UI. Prerequisites: Node.js 20+ and npm; the backend running on `http://localhost:8080` (see "Manual development" in `job-hunter-server/README.md`; do not run it together with the Docker stack, which uses the same port).
 
 ```bash
 cd job-hunter-web
@@ -22,9 +28,9 @@ Sign in with the account the backend created on first start, or create one with 
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `VITE_API_BASE_URL` | `http://localhost:8080` | Backend URL. Set it in `.env` (copy `.env.example`) only if the API runs elsewhere. |
+| `VITE_API_BASE_URL` | `http://localhost:8080` | Backend URL for `npm run dev`. Set it in `.env` (copy `.env.example`) only if the API runs elsewhere. Docker builds set it to empty (same origin). |
 
-The backend only accepts requests from the origins in its `CORS_ALLOWED_ORIGINS` (default `http://localhost:5173`), so keep the dev server on that port or update the backend setting.
+With `npm run dev`, the backend only accepts requests from the origins in its `CORS_ALLOWED_ORIGINS` (default `http://localhost:5173`), so keep the dev server on that port or update the backend setting. Behind the Docker nginx proxy there is no cross-origin request.
 
 ## Authentication
 
@@ -55,3 +61,5 @@ npm run lint      # oxlint
 npm run build     # type-check (tsc -b) + production build into dist/
 npm run preview   # serve the production build
 ```
+
+Build the production image on its own (the compose file in `job-hunter-server` normally does this): `docker build -t job-hunter-web .`
