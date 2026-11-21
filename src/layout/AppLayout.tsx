@@ -93,7 +93,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <Divider />
       </Drawer>
 
-      <Box component="main" sx={{ flexGrow: 1, bgcolor: 'background.default', minHeight: '100vh' }}>
+      {/* minWidth 0: lets wide content (Settings tabs, Board columns) scroll inside the page instead of widening it. */}
+      <Box component="main" sx={{ flexGrow: 1, minWidth: 0, bgcolor: 'background.default', minHeight: '100vh' }}>
         <Toolbar />
         <Box sx={{ p: 4 }}>{children}</Box>
       </Box>
