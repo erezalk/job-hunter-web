@@ -16,6 +16,7 @@ import { aiErrorMessage, aiMessageForCode } from '../api/aiErrors'
 import { AppearanceSettings } from './settings/AppearanceSettings'
 import { BoardSettings } from './settings/BoardSettings'
 import { McpIntegrationSettings } from './settings/McpIntegrationSettings'
+import { ExcludedCompaniesSettings } from './settings/ExcludedCompaniesSettings'
 import { DataSettings } from './settings/DataSettings'
 import { AccountSettings } from './settings/AccountSettings'
 import { SettingsCategoryNav } from './settings/SettingsCategoryNav'
@@ -207,6 +208,8 @@ export function SettingsPage() {
             removingAiConfiguration={removeAiConfigurationMutation.isPending}
           />
         )}
+
+        {category === 'discovery' && <ExcludedCompaniesSettings />}
 
         {category === 'integrations' && <McpIntegrationSettings />}
 

@@ -26,7 +26,7 @@ describe('Settings → Account', () => {
     loggedInBackend()
     renderApp('/settings')
     const tabs = (await screen.findAllByRole('tab')).map((tab) => tab.textContent)
-    expect(tabs).toEqual(['Appearance', 'Board', 'AI Matching', 'Claude / MCP', 'Data', 'Account'])
+    expect(tabs).toEqual(['Appearance', 'Board', 'AI Matching', 'Job Discovery', 'Claude / MCP', 'Data', 'Account'])
 
     await openAccountTab()
     expect(screen.getByText('Signed in as me@example.com')).toBeInTheDocument()
