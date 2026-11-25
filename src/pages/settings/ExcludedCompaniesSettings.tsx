@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useId, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { Alert, Box, Button, IconButton, Paper, TextField, Tooltip, Typography } from '@mui/material'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined'
@@ -41,7 +41,7 @@ function byName(a: ExcludedCompany, b: ExcludedCompany): number {
 }
 
 /**
- * Settings → Job Discovery → Excluded Companies. The list lives on the server
+ * Settings → Job Search → Excluded Companies. The list lives on the server
  * (MCP clients read it through get_excluded_companies); it never changes the
  * Board, so nothing else in the query cache is touched here.
  */
@@ -54,6 +54,7 @@ export function ExcludedCompaniesSettings() {
   const [listError, setListError] = useState<string | null>(null)
 
   const companies = companiesQuery.data
+  const headingId = useId()
 
   function updateList(update: (list: ExcludedCompany[]) => ExcludedCompany[]) {
     queryClient.setQueryData<ExcludedCompany[]>(EXCLUDED_COMPANIES_KEY, (current) => update(current ?? []).sort(byName))
@@ -148,15 +149,20 @@ export function ExcludedCompaniesSettings() {
   }
 
   return (
-    <Paper elevation={0} sx={{ p: 4, border: '1px solid', borderColor: 'divider' }}>
-      <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
+    <Paper
+      component="section"
+      aria-labelledby={headingId}
+      elevation={0}
+      sx={{ p: { xs: 2, sm: 4 }, border: '1px solid', borderColor: 'divider' }}
+    >
+      <Typography id={headingId} variant="h6" component="h2" sx={{ fontWeight: 700, mb: 0.5 }}>
         Excluded Companies
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Companies to skip during AI job searches. This does not affect your board.
       </Typography>
 
-      <Box component="form" noValidate onSubmit={handleAdd} sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start', mb: 3 }}>
+      <Box component="form" noValidate onSubmit={handleAdd} sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'flex-start', mb: 3 }}>
         <TextField
           size="small"
           placeholder="Company name"
@@ -168,7 +174,7 @@ export function ExcludedCompaniesSettings() {
           error={addError !== null}
           helperText={addError ?? undefined}
           slotProps={{ htmlInput: { maxLength: NAME_MAX_LENGTH, 'aria-label': 'Company name' } }}
-          sx={{ flex: '1 1 auto', maxWidth: 400 }}
+          sx={{ flex: '1 1 200px', maxWidth: 400 }}
         />
         <Button type="submit" variant="contained" disabled={addMutation.isPending}>
           {addMutation.isPending ? 'Adding…' : 'Add'}
@@ -207,6 +213,9 @@ export function ExcludedCompaniesSettings() {
               data-testid={`excluded-company-${company.id}`}
               sx={{
                 display: 'flex',
+                // Only the inline rename (field + Save + Cancel) wraps on narrow screens; a long
+                // name shrinks and wraps its text instead, keeping the icons on its line.
+                flexWrap: editing?.id === company.id ? 'wrap' : 'nowrap',
                 alignItems: 'center',
                 gap: 1,
                 py: 1,
@@ -228,7 +237,7 @@ export function ExcludedCompaniesSettings() {
                     helperText={editing.error ?? undefined}
                     disabled={renameMutation.isPending}
                     slotProps={{ htmlInput: { maxLength: NAME_MAX_LENGTH, 'aria-label': `New name for ${company.name}` } }}
-                    sx={{ flex: '1 1 auto' }}
+                    sx={{ flex: '1 1 200px' }}
                   />
                   <Button size="small" variant="contained" onClick={saveEdit} disabled={renameMutation.isPending}>
                     {renameMutation.isPending ? 'Saving…' : 'Save'}

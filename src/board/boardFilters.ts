@@ -17,6 +17,8 @@ const PRESET_DAYS: Partial<Record<DatePreset, number>> = { TODAY: 1, LAST_7: 7, 
 
 export interface BoardFilters {
   company: string | null
+  // One of workModelOptions(cards); null = All work models (jobs without one included).
+  workModel: string | null
   datePreset: DatePreset
   // Custom-range values. Only applied while datePreset is CUSTOM; kept when the
   // user switches to another preset so re-selecting Custom range restores them.
@@ -25,13 +27,14 @@ export interface BoardFilters {
   starred: boolean // true = only starred tickets
 }
 
-export const EMPTY_FILTERS: BoardFilters = { company: null, datePreset: 'ANY', from: '', to: '', starred: false }
+export const EMPTY_FILTERS: BoardFilters = { company: null, workModel: null, datePreset: 'ANY', from: '', to: '', starred: false }
 
 export function hasActiveFilters(filters: BoardFilters): boolean {
-  return filters.company !== null || filters.datePreset !== 'ANY' || filters.starred
+  return filters.company !== null || filters.workModel !== null || filters.datePreset !== 'ANY' || filters.starred
 }
 
-function companyKey(name: string): string {
+// Identity for free-text values (company, work model): case and whitespace don't matter.
+function textKey(name: string): string {
   return name.replace(/\s+/g, ' ').trim().toLowerCase()
 }
 
@@ -41,7 +44,7 @@ export function companyOptions(cards: BoardCard[]): string[] {
   const byKey = new Map<string, string>()
   for (const card of cards) {
     const name = card.companyName?.replace(/\s+/g, ' ').trim()
-    if (name && !byKey.has(companyKey(name))) byKey.set(companyKey(name), name)
+    if (name && !byKey.has(textKey(name))) byKey.set(textKey(name), name)
   }
   return [...byKey.values()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
 }
@@ -51,9 +54,29 @@ export function companyOptions(cards: BoardCard[]): string[] {
 // caller set the existing Company filter from a job's own company text.
 export function resolveCompanyOption(options: string[], name: string | null | undefined): string | null {
   if (!name) return null
-  const key = companyKey(name)
+  const key = textKey(name)
   if (!key) return null
-  return options.find((option) => companyKey(option) === key) ?? null
+  return options.find((option) => textKey(option) === key) ?? null
+}
+
+// Work model is free text on a Job, so the options are whatever the tickets
+// carry: each distinct value once (case/whitespace-insensitive), alphabetical.
+// Tickets without a work model add nothing. When tickets spell one value
+// differently ("Remote", "remote") the label is the most used spelling, ties
+// going to the capitalised one, so it never depends on ticket order.
+export function workModelOptions(cards: BoardCard[]): string[] {
+  const spellingsByKey = new Map<string, Map<string, number>>()
+  for (const card of cards) {
+    const workModel = card.workModel?.replace(/\s+/g, ' ').trim()
+    if (!workModel) continue
+    const spellings = spellingsByKey.get(textKey(workModel)) ?? new Map<string, number>()
+    spellings.set(workModel, (spellings.get(workModel) ?? 0) + 1)
+    spellingsByKey.set(textKey(workModel), spellings)
+  }
+  const labels = [...spellingsByKey.values()].map(
+    (spellings) => [...spellings].sort(([a, countA], [b, countB]) => countB - countA || (a < b ? -1 : a > b ? 1 : 0))[0][0],
+  )
+  return labels.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
 }
 
 // Calendar date (in the browser's local time zone) of a Job's discoveredAt.
@@ -82,10 +105,12 @@ export function effectiveDateRange(filters: BoardFilters, now: Date = new Date()
 
 export function filterCards(cards: BoardCard[], filters: BoardFilters, now: Date = new Date()): BoardCard[] {
   if (!hasActiveFilters(filters)) return cards
-  const wantedCompany = filters.company ? companyKey(filters.company) : null
+  const wantedCompany = filters.company ? textKey(filters.company) : null
+  const wantedWorkModel = filters.workModel ? textKey(filters.workModel) : null
   const range = effectiveDateRange(filters, now)
   return cards.filter((card) => {
-    if (wantedCompany !== null && companyKey(card.companyName ?? '') !== wantedCompany) return false
+    if (wantedCompany !== null && textKey(card.companyName ?? '') !== wantedCompany) return false
+    if (wantedWorkModel !== null && textKey(card.workModel ?? '') !== wantedWorkModel) return false
     if (filters.starred && !card.starred) return false
     const date = localDateKey(card.discoveredAt)
     if (range.from && date < range.from) return false

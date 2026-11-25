@@ -47,7 +47,7 @@ A 401 from any API call (other than a failed login) ends the session in the UI: 
 - `src/api/` — one thin module per backend area, sharing the axios client
 - `src/auth/` — `AuthProvider` / `useAuth`, `RequireAuth` route guard
 - `src/layout/` — app shell (header with the upcoming-stages bell, navigation)
-- `src/pages/` — Login, Sign up, Board, CV, Settings (Appearance, Board columns, AI Matching, Claude / MCP, Data export/import, Account)
+- `src/pages/` — Login, Sign up, Board, CV, Settings (Appearance, Board columns, AI Matching, Job Search (Search Prompt and Excluded Companies), Claude / MCP, Data export/import, Account)
 - `src/board/` — columns, cards, ticket drawer, Add Job / stage dialogs, filters, ordering helpers
 - `src/upcoming/` — upcoming-stages bell
 - `src/theme/` — MUI light/dark theme (System follows the OS)

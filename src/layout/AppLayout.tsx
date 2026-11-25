@@ -20,6 +20,8 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { TicketDrawerProvider } from '../board/TicketDrawerContext'
 import { UpcomingStagesBell } from '../upcoming/UpcomingStagesBell'
+import { UnsavedChangesProvider } from '../navigation/UnsavedChangesProvider'
+import { useConfirmLeave } from '../navigation/unsavedChangesContext'
 
 const DRAWER_WIDTH = 240
 
@@ -30,11 +32,21 @@ const NAV_ITEMS = [
 ]
 
 export function AppLayout({ children }: { children: ReactNode }) {
+  return (
+    <UnsavedChangesProvider>
+      <AppLayoutContent>{children}</AppLayoutContent>
+    </UnsavedChangesProvider>
+  )
+}
+
+function AppLayoutContent({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth()
   // Accounts created through sign-up have no name; show their email instead.
   const displayName = user?.fullName || user?.email || ''
   const navigate = useNavigate()
   const location = useLocation()
+  // Leaving the current page (or logging out) asks first when an editor has unsaved changes.
+  const confirmLeave = useConfirmLeave()
 
   async function handleLogout() {
     await logout()
@@ -58,7 +70,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               {displayName.charAt(0).toUpperCase()}
             </Avatar>
             <ListItemButton
-              onClick={handleLogout}
+              onClick={() => confirmLeave(() => void handleLogout())}
               sx={{ borderRadius: 1, px: 1, minWidth: 0 }}
               aria-label="Log out"
             >
@@ -82,7 +94,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <ListItemButton
               key={item.path}
               selected={location.pathname.startsWith(item.path)}
-              onClick={() => navigate(item.path)}
+              onClick={() => (location.pathname === item.path ? undefined : confirmLeave(() => navigate(item.path)))}
               sx={{ borderRadius: 1.5, mb: 0.5 }}
             >
               <ListItemIcon sx={{ minWidth: 36 }}>{item.icon}</ListItemIcon>
