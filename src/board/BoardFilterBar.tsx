@@ -10,6 +10,7 @@ const filterCompanies = createFilterOptions<string>({ matchFrom: 'any', ignoreCa
 export function BoardFilterBar({
   filters,
   companies,
+  workModels,
   shownCount,
   totalCount,
   onChange,
@@ -17,6 +18,8 @@ export function BoardFilterBar({
 }: {
   filters: BoardFilters
   companies: string[]
+  // Distinct work models present on the Board's tickets (never a fixed list).
+  workModels: string[]
   shownCount: number
   totalCount: number
   onChange: (filters: BoardFilters) => void
@@ -82,6 +85,22 @@ export function BoardFilterBar({
           />
         </>
       )}
+      <TextField
+        select
+        size="small"
+        label="Work model"
+        value={filters.workModel ?? ''}
+        onChange={(e) => onChange({ ...filters, workModel: e.target.value === '' ? null : e.target.value })}
+        slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}
+        sx={{ width: { xs: '100%', sm: 180 } }}
+      >
+        <MenuItem value="">All work models</MenuItem>
+        {workModels.map((workModel) => (
+          <MenuItem key={workModel} value={workModel}>
+            {workModel}
+          </MenuItem>
+        ))}
+      </TextField>
       <ToggleButton
         size="small"
         value="starred"

@@ -307,11 +307,12 @@ describe('ExcludedCompaniesSettings', () => {
   })
 })
 
-describe('Settings → Job Discovery', () => {
+describe('Settings → Job Search → Excluded Companies', () => {
   installFakeBackend()
 
-  it('is its own settings tab and talks to the excluded-companies API', async () => {
+  it('is a section of the Job Search tab and talks to the excluded-companies API', async () => {
     loggedInBackend()
+    backend.routes['GET /api/settings/search-prompt'] = { status: 200, data: { prompt: '', updatedAt: null } }
     let companies: ExcludedCompany[] = [FLIX]
     backend.routes['GET /api/settings/excluded-companies'] = () => ({ status: 200, data: companies })
     backend.routes['POST /api/settings/excluded-companies'] = (body) => {
@@ -323,8 +324,8 @@ describe('Settings → Job Discovery', () => {
     backend.routes['DELETE /api/settings/excluded-companies/9'] = { status: 204 }
     renderApp('/settings')
 
-    await userEvent.click(await screen.findByRole('tab', { name: 'Job Discovery' }))
-    expect(await screen.findByText('Flix')).toBeInTheDocument()
+    await userEvent.click(await screen.findByRole('tab', { name: 'Job Search' }))
+    expect(await within(screen.getByRole('region', { name: 'Excluded Companies' })).findByText('Flix')).toBeInTheDocument()
 
     await userEvent.type(screen.getByRole('textbox', { name: 'Company name' }), ' PPRO {Enter}')
     expect(await screen.findByText('PPRO')).toBeInTheDocument()

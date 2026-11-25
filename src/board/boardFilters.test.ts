@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { BoardCard } from '../api/board'
-import { EMPTY_FILTERS, effectiveDateRange, filterCards, hasActiveFilters, type BoardFilters } from './boardFilters'
+import { EMPTY_FILTERS, effectiveDateRange, filterCards, hasActiveFilters, workModelOptions, type BoardFilters } from './boardFilters'
 
 // All dates are built from LOCAL calendar components, so the tests behave the
 // same in any timezone the suite runs in. "Today" is fixed: Oct 10, 2026.
@@ -134,5 +134,100 @@ describe('combination, clearing and ordering', () => {
     expect(ids(shown)).toEqual([cards[0].applicationId, cards[2].applicationId, cards[3].applicationId])
     expect(ids(cards)).toEqual(before)
     expect(ids(filterCards(cards, EMPTY_FILTERS, NOW))).toEqual(before)
+  })
+})
+
+describe('work model options (derived from the tickets)', () => {
+  it('lists each distinct value once, with its existing label, alphabetically', () => {
+    const cards = [
+      card({ at: day(10, 1), workModel: 'Remote' }),
+      card({ at: day(10, 1), workModel: 'Hybrid' }),
+      card({ at: day(10, 1), workModel: 'remote' }),
+      card({ at: day(10, 1), workModel: '  Remote ' }),
+      card({ at: day(10, 1), workModel: 'Hybrid' }),
+    ]
+    expect(workModelOptions(cards)).toEqual(['Hybrid', 'Remote'])
+  })
+
+  it('labels a value with its most used spelling, independent of ticket order', () => {
+    const at = day(10, 1)
+    const lowerFirst = [card({ at, workModel: 'remote' }), card({ at, workModel: 'Remote' }), card({ at, workModel: 'Remote' })]
+    expect(workModelOptions(lowerFirst)).toEqual(['Remote'])
+    expect(workModelOptions([...lowerFirst].reverse())).toEqual(['Remote'])
+    const mostlyLower = [card({ at, workModel: 'HYBRID' }), card({ at, workModel: 'hybrid' }), card({ at, workModel: 'hybrid' })]
+    expect(workModelOptions(mostlyLower)).toEqual(['hybrid'])
+    const tie = [card({ at, workModel: 'onsite' }), card({ at, workModel: 'Onsite' })]
+    expect(workModelOptions(tie)).toEqual(['Onsite'])
+    expect(workModelOptions([...tie].reverse())).toEqual(['Onsite'])
+  })
+
+  it('is not a fixed list: any value on a ticket becomes an option, absent ones do not', () => {
+    const cards = [card({ at: day(10, 1), workModel: 'Remote first' }), card({ at: day(10, 1), workModel: 'Onsite' })]
+    expect(workModelOptions(cards)).toEqual(['Onsite', 'Remote first'])
+    expect(workModelOptions(cards)).not.toContain('Hybrid')
+    expect(workModelOptions([...cards, card({ at: day(10, 1), workModel: '4-day office' })])).toEqual(['4-day office', 'Onsite', 'Remote first'])
+  })
+
+  it('tickets without a work model (null, empty, blank) add no option', () => {
+    const cards = [card({ at: day(10, 1) }), card({ at: day(10, 1), workModel: '' }), card({ at: day(10, 1), workModel: '   ' })]
+    expect(workModelOptions(cards)).toEqual([])
+  })
+
+  it('includes values from every status (Low Match, Rejected, Archived)', () => {
+    const cards = [
+      card({ at: day(10, 1), workModel: 'Remote', statusCode: 'LOW_MATCH' }),
+      card({ at: day(10, 1), workModel: 'Hybrid', statusCode: 'REJECTED' }),
+      card({ at: day(10, 1), workModel: 'Onsite', statusCode: 'ARCHIVED' }),
+    ]
+    expect(workModelOptions(cards)).toEqual(['Hybrid', 'Onsite', 'Remote'])
+  })
+})
+
+describe('work model filtering', () => {
+  const remote = card({ at: day(10, 8), workModel: 'Remote' })
+  const remoteLower = card({ at: day(10, 8), workModel: ' remote ' })
+  const hybrid = card({ at: day(10, 8), workModel: 'Hybrid' })
+  const none = card({ at: day(10, 8) })
+  const all = [remote, hybrid, none, remoteLower]
+
+  it('a selected work model keeps only matching jobs (case/whitespace-insensitive), across every status', () => {
+    const lowMatch = card({ at: day(10, 8), workModel: 'Remote', statusCode: 'LOW_MATCH' })
+    const rejectedHybrid = card({ at: day(10, 8), workModel: 'Hybrid', statusCode: 'REJECTED' })
+    const result = filterCards([...all, lowMatch, rejectedHybrid], filters({ workModel: 'Remote' }), NOW)
+    expect(ids(result)).toEqual([remote.applicationId, remoteLower.applicationId, lowMatch.applicationId])
+  })
+
+  it('jobs without a work model are hidden by a selected value but shown by All work models', () => {
+    expect(ids(filterCards(all, filters({ workModel: 'Hybrid' }), NOW))).toEqual([hybrid.applicationId])
+    expect(filterCards(all, filters({ workModel: null }), NOW)).toEqual(all)
+  })
+
+  it('counts as an active filter only when a value is selected', () => {
+    expect(hasActiveFilters(filters({ workModel: 'Remote' }))).toBe(true)
+    expect(hasActiveFilters(filters({ workModel: null }))).toBe(false)
+    expect(EMPTY_FILTERS.workModel).toBeNull()
+  })
+
+  it('combines with Company, Date and Starred using AND', () => {
+    const match = card({ at: day(10, 8), companyName: 'Acme', workModel: 'Remote', starred: true })
+    const wrongModel = card({ at: day(10, 8), companyName: 'Acme', workModel: 'Hybrid', starred: true })
+    const noModel = card({ at: day(10, 8), companyName: 'Acme', starred: true })
+    const wrongCompany = card({ at: day(10, 8), companyName: 'Other', workModel: 'Remote', starred: true })
+    const notStarred = card({ at: day(10, 8), companyName: 'Acme', workModel: 'Remote' })
+    const tooOld = card({ at: day(8, 1), companyName: 'Acme', workModel: 'Remote', starred: true })
+    const cards = [wrongModel, noModel, wrongCompany, notStarred, tooOld, match]
+    const active = filters({ company: 'Acme', workModel: 'Remote', datePreset: 'LAST_30', starred: true })
+    expect(ids(filterCards(cards, active, NOW))).toEqual([match.applicationId])
+    expect(ids(filterCards(cards, filters({ workModel: 'Remote', starred: true }), NOW))).toEqual([
+      wrongCompany.applicationId,
+      tooOld.applicationId,
+      match.applicationId,
+    ])
+  })
+
+  it('keeps the persisted order and never mutates the cards', () => {
+    const snapshot = JSON.stringify(all)
+    expect(ids(filterCards(all, filters({ workModel: 'remote' }), NOW))).toEqual([remote.applicationId, remoteLower.applicationId])
+    expect(JSON.stringify(all)).toBe(snapshot)
   })
 })

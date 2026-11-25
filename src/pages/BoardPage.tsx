@@ -21,7 +21,15 @@ import { fetchBoard, type BoardCard } from '../api/board'
 import { fetchSettings } from '../api/settings'
 import { AddJobDialog } from '../board/AddJobDialog'
 import { BoardFilterBar } from '../board/BoardFilterBar'
-import { companyOptions, EMPTY_FILTERS, filterCards, hasActiveFilters, resolveCompanyOption, type BoardFilters } from '../board/boardFilters'
+import {
+  companyOptions,
+  EMPTY_FILTERS,
+  filterCards,
+  hasActiveFilters,
+  resolveCompanyOption,
+  workModelOptions,
+  type BoardFilters,
+} from '../board/boardFilters'
 import { BOARD_COLUMNS, DEFAULT_VISIBLE_COLUMN_CODES } from '../board/boardColumns'
 import { applyMove, isNoOpMove } from '../board/boardOrder'
 import { BoardColumn, type DropIndicator } from '../board/BoardColumn'
@@ -154,9 +162,18 @@ export function BoardPage() {
   // visibility never changes the filter vocabulary.
   const allCards = boardQuery.data ?? []
   const companies = companyOptions(allCards)
+  const workModels = workModelOptions(allCards)
+  // The selected work model follows its option's current label; once no ticket
+  // carries it, it resets to All work models. State is updated too, so an old
+  // selection cannot silently come back when a later ticket uses that value.
+  const selectedWorkModel = filters.workModel && (workModels.find((o) => o.toLowerCase() === filters.workModel?.toLowerCase()) ?? null)
+  if (boardQuery.data && selectedWorkModel !== filters.workModel) {
+    setFilters((current) => ({ ...current, workModel: selectedWorkModel }))
+  }
   const activeFilters: BoardFilters = {
     ...filters,
     company: filters.company !== null && companies.includes(filters.company) ? filters.company : null,
+    workModel: selectedWorkModel,
   }
   const filtered = filterCards(allCards, activeFilters)
   const filtersActive = hasActiveFilters(activeFilters)
@@ -192,6 +209,7 @@ export function BoardPage() {
         <BoardFilterBar
           filters={activeFilters}
           companies={companies}
+          workModels={workModels}
           shownCount={shownCount}
           totalCount={totalCount}
           onChange={setFilters}

@@ -1,4 +1,4 @@
-export type SettingsCategory = 'appearance' | 'board' | 'ai' | 'discovery' | 'integrations' | 'data' | 'account'
+export type SettingsCategory = 'appearance' | 'board' | 'ai' | 'jobSearch' | 'integrations' | 'data' | 'account'
 
 export interface SettingsCategoryDef {
   key: SettingsCategory
@@ -9,7 +9,7 @@ export const SETTINGS_CATEGORIES: SettingsCategoryDef[] = [
   { key: 'appearance', label: 'Appearance' },
   { key: 'board', label: 'Board' },
   { key: 'ai', label: 'AI Matching' },
-  { key: 'discovery', label: 'Job Discovery' },
+  { key: 'jobSearch', label: 'Job Search' },
   { key: 'integrations', label: 'Claude / MCP' },
   { key: 'data', label: 'Data' },
   { key: 'account', label: 'Account' },

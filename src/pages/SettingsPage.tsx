@@ -16,11 +16,12 @@ import { aiErrorMessage, aiMessageForCode } from '../api/aiErrors'
 import { AppearanceSettings } from './settings/AppearanceSettings'
 import { BoardSettings } from './settings/BoardSettings'
 import { McpIntegrationSettings } from './settings/McpIntegrationSettings'
-import { ExcludedCompaniesSettings } from './settings/ExcludedCompaniesSettings'
+import { JobSearchSettings } from './settings/JobSearchSettings'
 import { DataSettings } from './settings/DataSettings'
 import { AccountSettings } from './settings/AccountSettings'
 import { SettingsCategoryNav } from './settings/SettingsCategoryNav'
 import type { SettingsCategory } from './settings/settingsCategories'
+import { useConfirmLeave } from '../navigation/unsavedChangesContext'
 
 function extractErrorMessage(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err) && err.response?.data?.message) {
@@ -51,6 +52,7 @@ export function SettingsPage() {
   const [snackbar, setSnackbar] = useState<string | null>(null)
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
+  const confirmLeave = useConfirmLeave()
 
   useEffect(() => {
     // Initialise once; mutations below merge what they changed into the form,
@@ -166,9 +168,11 @@ export function SettingsPage() {
         Settings
       </Typography>
 
-      <SettingsCategoryNav value={category} onChange={setCategory} />
+      {/* A tab with unsaved changes (the Job Search tab's Search Prompt) asks before it is left. */}
+      <SettingsCategoryNav value={category} onChange={(next) => confirmLeave(() => setCategory(next))} />
 
-      <Box sx={{ maxWidth: 560 }}>
+      {/* Job Search gets more room for the long prompt editor; every other tab keeps the narrow form width. */}
+      <Box sx={{ maxWidth: category === 'jobSearch' ? 960 : 560 }}>
         {category === 'appearance' && (
           <AppearanceSettings
             form={form}
@@ -209,7 +213,7 @@ export function SettingsPage() {
           />
         )}
 
-        {category === 'discovery' && <ExcludedCompaniesSettings />}
+        {category === 'jobSearch' && <JobSearchSettings />}
 
         {category === 'integrations' && <McpIntegrationSettings />}
 
